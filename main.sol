@@ -89,3 +89,94 @@ library FridgAITemperature {
     }
     function decicelsiusToCelsius(int256 decicelsius) internal pure returns (int256) {
         return decicelsius / 10;
+    }
+    function fahrenheitToDecicelsius(int256 fahrenheit) internal pure returns (int256) {
+        return (fahrenheit - 32) * 5 / 9 * 10;
+    }
+    function decicelsiusToFahrenheit(int256 decicelsius) internal pure returns (int256) {
+        return decicelsius * 9 / 50 + 32;
+    }
+    function toScaled(int256 decicelsius) internal pure returns (int256) {
+        return decicelsius * int256(SCALE);
+    }
+    function fromScaled(int256 scaled) internal pure returns (int256) {
+        return scaled / int256(SCALE);
+    }
+    function dewpointApprox(int256 tempDecicelsius, uint16 humidityPercent) internal pure returns (int256 decicelsiusApprox) {
+        int256 t = decicelsiusToCelsius(tempDecicelsius);
+        int256 h = int256(uint256(humidityPercent));
+        if (h <= 0) return tempDecicelsius;
+        int256 offset = (t * (100 - int256(uint256(humidityPercent))) * 10) / 1000;
+        decicelsiusApprox = tempDecicelsius - offset;
+    }
+}
+
+contract FridgAI {
+
+    // -------------------------------------------------------------------------
+    // EVENTS
+    // -------------------------------------------------------------------------
+
+    event ZoneRegistered(
+        bytes32 indexed zoneId,
+        address indexed submitter,
+        uint16 setpointDecicelsius,
+        bytes32 zoneHash,
+        uint256 anchoredAt
+    );
+    event SetpointRecorded(
+        bytes32 indexed zoneId,
+        uint32 indexed readingIndex,
+        int256 tempScaled,
+        bytes32 sensorRoot,
+        uint256 recordedAt
+    );
+    event HysteresisAnchored(
+        bytes32 indexed zoneId,
+        uint32 bandIndex,
+        bytes32 bandHash,
+        uint256 anchoredAt
+    );
+    event ClimateCuratorUpdated(address indexed previousCurator, address indexed newCurator);
+    event FeeCollectorUpdated(address indexed previousCollector, address indexed newCollector);
+    event AnchorFeeSet(uint256 previousFeeWei, uint256 newFeeWei);
+    event ZoneArchived(bytes32 indexed zoneId, address indexed archivedBy, uint256 atBlock);
+    event TreasuryPull(address indexed to, uint256 amountWei, uint256 atBlock);
+    event ScheduleBound(bytes32 indexed zoneId, uint256 windowStart, uint256 windowEnd, uint256 atBlock);
+    event SetpointSuggestionApplied(bytes32 indexed zoneId, int256 suggestedDecicelsius, address indexed appliedBy);
+    event AmbientOverride(bytes32 indexed zoneId, bool coolingActive, uint256 atBlock);
+    event DefrostCycleLogged(bytes32 indexed zoneId, uint256 durationSeconds, uint256 atBlock);
+    event CalibrationOffsetSet(bytes32 indexed zoneId, int256 offsetScaled, uint256 atBlock);
+    event HumiditySnapshot(bytes32 indexed zoneId, uint16 humidityPercent, uint256 atBlock);
+    event FanPresetBound(bytes32 indexed zoneId, uint8 presetIndex, uint8 speedPercent, uint256 atBlock);
+    event ZoneLabelSet(bytes32 indexed zoneId, string label, uint256 atBlock);
+    event CooldownWindowStarted(bytes32 indexed zoneId, uint256 untilBlock, uint256 atBlock);
+    event CooldownWindowEnded(bytes32 indexed zoneId, uint256 atBlock);
+    event BatchZonesRegistered(uint256 count, address indexed submitter, uint256 atBlock);
+    event BatchReadingsRecorded(bytes32 indexed zoneId, uint32 startIndex, uint32 count, uint256 atBlock);
+    event EmergencySetpointOverride(bytes32 indexed zoneId, uint16 setpointDecicelsius, address indexed by, uint256 atBlock);
+    event ThermostatModeSet(bytes32 indexed zoneId, uint8 mode, uint256 atBlock);
+    event FrostGuardToggled(bytes32 indexed zoneId, bool enabled, uint256 atBlock);
+    event NightSetbackApplied(bytes32 indexed zoneId, uint16 setbackDecicelsius, uint256 atBlock);
+    event DaySetforwardApplied(bytes32 indexed zoneId, uint16 setforwardDecicelsius, uint256 atBlock);
+    event SensorCalibrationRecorded(bytes32 indexed zoneId, uint32 sensorIndex, int256 correctionScaled, uint256 atBlock);
+    event ZoneLinked(bytes32 indexed zoneA, bytes32 indexed zoneB, uint256 atBlock);
+    event ZoneUnlinked(bytes32 indexed zoneA, bytes32 indexed zoneB, uint256 atBlock);
+    event OperatorNonceIncremented(address indexed operator, uint256 newNonce, uint256 atBlock);
+
+    // -------------------------------------------------------------------------
+    // ERRORS
+    // -------------------------------------------------------------------------
+
+    error FRG_NotClimateCurator();
+    error FRG_ZeroAddress();
+    error FRG_ZoneNotFound();
+    error FRG_ZoneAlreadyArchived();
+    error FRG_ReadingIndexOutOfRange();
+    error FRG_InvalidZoneId();
+    error FRG_InvalidZoneHash();
+    error FRG_AnchorFeeRequired();
+    error FRG_TransferFailed();
+    error FRG_Reentrancy();
+    error FRG_Paused();
+    error FRG_ReadingCountMismatch();
