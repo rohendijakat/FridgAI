@@ -453,3 +453,94 @@ contract FridgAI {
         emit ZoneArchived(zoneId, msg.sender, block.timestamp);
     }
 
+    function setCalibrationOffset(bytes32 zoneId, int256 offsetScaled) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (offsetScaled > int256(CALIBRATION_OFFSET_MAX) || offsetScaled < -int256(CALIBRATION_OFFSET_MAX)) revert FRG_CalibrationOutOfRange();
+        _calibrationOffset[zoneId] = offsetScaled;
+        emit CalibrationOffsetSet(zoneId, offsetScaled, block.timestamp);
+    }
+
+    function recordHumiditySnapshot(bytes32 zoneId, uint16 humidityPercent) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (humidityPercent > MAX_HUMIDITY_PERCENT) revert FRG_HumidityOutOfRange();
+        _humiditySnapshot[zoneId] = humidityPercent;
+        emit HumiditySnapshot(zoneId, humidityPercent, block.timestamp);
+    }
+
+    function setFanPreset(bytes32 zoneId, uint8 presetIndex, uint8 speedPercent) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (presetIndex >= MAX_FAN_PRESETS) revert FRG_InvalidFanPreset();
+        if (speedPercent > 100) revert FRG_InvalidFanPreset();
+        _fanPresetSpeed[zoneId][presetIndex] = speedPercent;
+        emit FanPresetBound(zoneId, presetIndex, speedPercent, block.timestamp);
+    }
+
+    function setZoneLabel(bytes32 zoneId, string calldata label) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (bytes(label).length > MAX_LABEL_LENGTH) revert FRG_LabelTooLong();
+        _zoneLabel[zoneId] = label;
+        emit ZoneLabelSet(zoneId, label, block.timestamp);
+    }
+
+    function startCooldownWindow(bytes32 zoneId, uint256 durationBlocks) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        _cooldownUntilBlock[zoneId] = block.number + durationBlocks;
+        emit CooldownWindowStarted(zoneId, block.number + durationBlocks, block.timestamp);
+    }
+
+    function endCooldownWindow(bytes32 zoneId) external onlyClimateCurator {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        _cooldownUntilBlock[zoneId] = 0;
+        emit CooldownWindowEnded(zoneId, block.timestamp);
+    }
+
+    function setThermostatMode(bytes32 zoneId, uint8 mode) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (mode > THERMOSTAT_MODE_AUTO) revert FRG_InvalidThermostatMode();
+        _thermostatMode[zoneId] = mode;
+        emit ThermostatModeSet(zoneId, mode, block.timestamp);
+    }
+
+    function setFrostGuard(bytes32 zoneId, bool enabled) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        _frostGuardEnabled[zoneId] = enabled;
+        emit FrostGuardToggled(zoneId, enabled, block.timestamp);
+    }
+
+    function setNightSetback(bytes32 zoneId, uint16 setbackDecicelsius) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (setbackDecicelsius > MAX_SETPOINT_DECICELSIUS) revert FRG_SetbackOutOfBounds();
+        _nightSetbackDecicelsius[zoneId] = setbackDecicelsius;
+        emit NightSetbackApplied(zoneId, setbackDecicelsius, block.timestamp);
+    }
+
+    function setDaySetforward(bytes32 zoneId, uint16 setforwardDecicelsius) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (setforwardDecicelsius > MAX_SETPOINT_DECICELSIUS) revert FRG_SetbackOutOfBounds();
+        _daySetforwardDecicelsius[zoneId] = setforwardDecicelsius;
+        emit DaySetforwardApplied(zoneId, setforwardDecicelsius, block.timestamp);
+    }
+
+    function recordSensorCalibration(bytes32 zoneId, uint32 sensorIndex, int256 correctionScaled) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (sensorIndex >= MAX_READINGS_PER_ZONE) revert FRG_SensorIndexOutOfRange();
+        _sensorCalibration[zoneId][sensorIndex] = correctionScaled;
+        emit SensorCalibrationRecorded(zoneId, sensorIndex, correctionScaled, block.timestamp);
+    }
+
+    function linkZones(bytes32 zoneA, bytes32 zoneB) external onlyClimateCurator whenNotPaused {
+        if (zoneA == zoneB) revert FRG_CannotLinkSelf();
+        if (_zones[zoneA].createdAt == 0 || _zones[zoneB].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneA] || _archived[zoneB]) revert FRG_ZoneAlreadyArchived();
+        if (_linkExists[zoneA][zoneB]) revert FRG_ZoneAlreadyLinked();
+        bytes32[] storage linksA = _linkedZones[zoneA];
