@@ -1090,3 +1090,94 @@ contract FridgAI {
     }
 
     function getAnchorFeeWei() external view returns (uint256) {
+        return anchorFeeWei;
+    }
+
+    function getZoneBatch(bytes32[] calldata zoneIds) external view returns (
+        bytes32[] memory zoneHashes,
+        uint16[] memory setpoints,
+        uint64[] memory createdAts,
+        bool[] memory coolingPreferred,
+        int256[] memory lastSuggested
+    ) {
+        uint256 n = zoneIds.length;
+        zoneHashes = new bytes32[](n);
+        setpoints = new uint16[](n);
+        createdAts = new uint64[](n);
+        coolingPreferred = new bool[](n);
+        lastSuggested = new int256[](n);
+        for (uint256 i = 0; i < n; i++) {
+            Zone storage z = _zones[zoneIds[i]];
+            if (z.createdAt != 0) {
+                zoneHashes[i] = z.zoneHash;
+                setpoints[i] = z.setpointDecicelsius;
+                createdAts[i] = z.createdAt;
+                coolingPreferred[i] = z.coolingPreferred;
+                lastSuggested[i] = z.lastSuggestedSetpoint;
+            }
+        }
+    }
+
+    function getZoneStatusBatch(bytes32[] calldata zoneIds) external view returns (
+        bool[] memory exists,
+        bool[] memory archived,
+        bool[] memory inCooldown
+    ) {
+        uint256 n = zoneIds.length;
+        exists = new bool[](n);
+        archived = new bool[](n);
+        inCooldown = new bool[](n);
+        for (uint256 i = 0; i < n; i++) {
+            bytes32 zid = zoneIds[i];
+            exists[i] = _zones[zid].createdAt != 0;
+            archived[i] = _archived[zid];
+            inCooldown[i] = block.number < _cooldownUntilBlock[zid];
+        }
+    }
+
+    function getReadingCountsBatch(bytes32[] calldata zoneIds) external view returns (uint32[] memory counts) {
+        uint256 n = zoneIds.length;
+        counts = new uint32[](n);
+        for (uint256 i = 0; i < n; i++) counts[i] = _readingCount[zoneIds[i]];
+    }
+
+    function getBandCountsBatch(bytes32[] calldata zoneIds) external view returns (uint32[] memory counts) {
+        uint256 n = zoneIds.length;
+        counts = new uint32[](n);
+        for (uint256 i = 0; i < n; i++) counts[i] = _bandCount[zoneIds[i]];
+    }
+
+    function getEffectiveSetpointsNowBatch(bytes32[] calldata zoneIds) external view returns (uint16[] memory setpoints) {
+        uint256 n = zoneIds.length;
+        setpoints = new uint16[](n);
+        for (uint256 i = 0; i < n; i++) {
+            bytes32 zid = zoneIds[i];
+            if (_zones[zid].createdAt == 0) continue;
+            setpoints[i] = this.getEffectiveSetpointNow(zid);
+        }
+    }
+
+    function getCalibrationOffsetsBatch(bytes32[] calldata zoneIds) external view returns (int256[] memory offsets) {
+        uint256 n = zoneIds.length;
+        offsets = new int256[](n);
+        for (uint256 i = 0; i < n; i++) offsets[i] = _calibrationOffset[zoneIds[i]];
+    }
+
+    function getHumiditySnapshotsBatch(bytes32[] calldata zoneIds) external view returns (uint16[] memory humidities) {
+        uint256 n = zoneIds.length;
+        humidities = new uint16[](n);
+        for (uint256 i = 0; i < n; i++) humidities[i] = _humiditySnapshot[zoneIds[i]];
+    }
+
+    function getThermostatModesBatch(bytes32[] calldata zoneIds) external view returns (uint8[] memory modes) {
+        uint256 n = zoneIds.length;
+        modes = new uint8[](n);
+        for (uint256 i = 0; i < n; i++) modes[i] = _thermostatMode[zoneIds[i]];
+    }
+
+    function getFrostGuardBatch(bytes32[] calldata zoneIds) external view returns (bool[] memory enabled) {
+        uint256 n = zoneIds.length;
+        enabled = new bool[](n);
+        for (uint256 i = 0; i < n; i++) enabled[i] = _frostGuardEnabled[zoneIds[i]];
+    }
+
