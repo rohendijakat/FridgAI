@@ -908,3 +908,94 @@ contract FridgAI {
 
     function getScheduleWindows(bytes32 zoneId) external view returns (
         uint256[] memory startBlocks,
+        uint256[] memory endBlocks,
+        uint16[] memory setpointsDecicelsius
+    ) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        ScheduleWindow[] storage w = _schedules[zoneId];
+        uint256 len = w.length;
+        startBlocks = new uint256[](len);
+        endBlocks = new uint256[](len);
+        setpointsDecicelsius = new uint16[](len);
+        for (uint256 i = 0; i < len; i++) {
+            startBlocks[i] = w[i].startBlock;
+            endBlocks[i] = w[i].endBlock;
+            setpointsDecicelsius[i] = w[i].setpointDecicelsius;
+        }
+    }
+
+    function getFanPresets(bytes32 zoneId) external view returns (uint8[] memory speeds) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        speeds = new uint8[](MAX_FAN_PRESETS);
+        for (uint8 i = 0; i < MAX_FAN_PRESETS; i++) {
+            speeds[i] = _fanPresetSpeed[zoneId][i];
+        }
+    }
+
+    function getDewpointApprox(bytes32 zoneId) external view returns (int256 decicelsiusApprox) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        uint32 n = _readingCount[zoneId];
+        if (n == 0) return 0;
+        SetpointReading storage r = _readings[zoneId][n - 1];
+        uint16 h = _humiditySnapshot[zoneId];
+        return FridgAITemperature.dewpointApprox(r.tempScaled / int256(TEMP_SCALE_FACTOR), h);
+    }
+
+    function celsiusToDecicelsius(int256 celsius) external pure returns (int256) {
+        return FridgAITemperature.celsiusToDecicelsius(celsius);
+    }
+
+    function decicelsiusToCelsius(int256 decicelsius) external pure returns (int256) {
+        return FridgAITemperature.decicelsiusToCelsius(decicelsius);
+    }
+
+    function fahrenheitToDecicelsius(int256 fahrenheit) external pure returns (int256) {
+        return FridgAITemperature.fahrenheitToDecicelsius(fahrenheit);
+    }
+
+    function decicelsiusToFahrenheit(int256 decicelsius) external pure returns (int256) {
+        return FridgAITemperature.decicelsiusToFahrenheit(decicelsius);
+    }
+
+    function scaledToDecicelsiusPublic(int256 scaled) external pure returns (int256) {
+        return FridgAITemperature.fromScaled(scaled);
+    }
+
+    function decicelsiusToScaledPublic(int256 decicelsius) external pure returns (int256) {
+        return FridgAITemperature.toScaled(decicelsius);
+    }
+
+    function minUint(uint256 a, uint256 b) external pure returns (uint256) {
+        return FridgAIMath.min(a, b);
+    }
+
+    function maxUint(uint256 a, uint256 b) external pure returns (uint256) {
+        return FridgAIMath.max(a, b);
+    }
+
+    function clampUint(uint256 x, uint256 lo, uint256 hi) external pure returns (uint256) {
+        return FridgAIMath.clamp(x, lo, hi);
+    }
+
+    function clampIntPublic(int256 x, int256 lo, int256 hi) external pure returns (int256) {
+        return FridgAIMath.clampInt(x, lo, hi);
+    }
+
+    function absInt(int256 x) external pure returns (uint256) {
+        return FridgAIMath.abs(x);
+    }
+
+    function saturatingSubPublic(uint256 a, uint256 b) external pure returns (uint256) {
+        return FridgAIMath.saturatingSub(a, b);
+    }
+
+    function mulDivDownPublic(uint256 x, uint256 y, uint256 d) external pure returns (uint256) {
+        return FridgAIMath.mulDivDown(x, y, d);
+    }
+
+    function mulDivUpPublic(uint256 x, uint256 y, uint256 d) external pure returns (uint256) {
+        return FridgAIMath.mulDivUp(x, y, d);
+    }
+
+    function domainSeparator() external pure returns (bytes32) {
+        return FRG_DOMAIN;
