@@ -180,3 +180,94 @@ contract FridgAI {
     error FRG_Reentrancy();
     error FRG_Paused();
     error FRG_ReadingCountMismatch();
+    error FRG_BandIndexOutOfRange();
+    error FRG_AlreadyInitialized();
+    error FRG_InvalidFee();
+    error FRG_SetpointOutOfBounds();
+    error FRG_InvalidScheduleWindow();
+    error FRG_HysteresisBandInvalid();
+    error FRG_CalibrationOutOfRange();
+    error FRG_HumidityOutOfRange();
+    error FRG_InvalidFanPreset();
+    error FRG_LabelTooLong();
+    error FRG_CooldownActive();
+    error FRG_BatchSizeZero();
+    error FRG_BatchSizeTooLarge();
+    error FRG_InvalidThermostatMode();
+    error FRG_ZoneAlreadyLinked();
+    error FRG_ZoneNotLinked();
+    error FRG_CannotLinkSelf();
+    error FRG_SensorIndexOutOfRange();
+    error FRG_SetbackOutOfBounds();
+    error FRG_InvalidNonce();
+
+    // -------------------------------------------------------------------------
+    // CONSTANTS
+    // -------------------------------------------------------------------------
+
+    uint256 public constant FRG_VERSION = 12;
+    uint256 public constant MAX_LABEL_LENGTH = 64;
+    uint256 public constant MAX_BATCH_ZONES = 50;
+    uint256 public constant MAX_BATCH_READINGS = 200;
+    uint256 public constant THERMOSTAT_MODE_OFF = 0;
+    uint256 public constant THERMOSTAT_MODE_COOL = 1;
+    uint256 public constant THERMOSTAT_MODE_HEAT = 2;
+    uint256 public constant THERMOSTAT_MODE_AUTO = 3;
+    uint256 public constant MAX_FAN_PRESETS = 8;
+    uint256 public constant MAX_HUMIDITY_PERCENT = 100;
+    uint256 public constant CALIBRATION_OFFSET_MAX = 1e15;
+    uint256 public constant MAX_LINKED_ZONES = 16;
+    uint256 public constant MAX_READINGS_PER_ZONE = 60000;
+    uint256 public constant MAX_HYSTERESIS_BANDS = 2500;
+    uint256 public constant TEMP_SCALE_FACTOR = 1e12;
+    uint256 public constant MIN_SETPOINT_DECICELSIUS = 0;
+    uint256 public constant MAX_SETPOINT_DECICELSIUS = 500;
+    bytes32 public constant FRG_DOMAIN = keccak256("FridgAI.Climate.v12");
+    uint256 public constant MAX_SCHEDULE_WINDOWS_PER_ZONE = 96;
+    uint256 public constant DEFROST_MAX_DURATION = 3600;
+
+    // -------------------------------------------------------------------------
+    // IMMUTABLES
+    // -------------------------------------------------------------------------
+
+    address public immutable climateHub;
+    address public immutable feeCollector;
+    uint256 public immutable anchorFeeWei;
+    address public immutable fallbackTreasury;
+
+    // -------------------------------------------------------------------------
+    // STATE
+    // -------------------------------------------------------------------------
+
+    address public climateCurator;
+    bool private _paused;
+    uint256 private _guard;
+    uint256 private _nextZoneId;
+    mapping(bytes32 => Zone) private _zones;
+    mapping(bytes32 => bool) private _archived;
+    mapping(bytes32 => uint32) private _readingCount;
+    mapping(bytes32 => uint32) private _bandCount;
+    mapping(bytes32 => ScheduleWindow[]) private _schedules;
+    mapping(bytes32 => uint256) private _defrostLastAt;
+    mapping(address => uint256) private _operatorNonce;
+    mapping(bytes32 => int256) private _calibrationOffset;
+    mapping(bytes32 => uint16) private _humiditySnapshot;
+    mapping(bytes32 => uint256) private _cooldownUntilBlock;
+    mapping(bytes32 => uint8) private _thermostatMode;
+    mapping(bytes32 => bool) private _frostGuardEnabled;
+    mapping(bytes32 => uint16) private _nightSetbackDecicelsius;
+    mapping(bytes32 => uint16) private _daySetforwardDecicelsius;
+    mapping(bytes32 => string) private _zoneLabel;
+    mapping(bytes32 => bytes32[]) private _linkedZones;
+    mapping(bytes32 => mapping(bytes32 => bool)) private _linkExists;
+    mapping(bytes32 => mapping(uint8 => uint8)) private _fanPresetSpeed;
+    mapping(bytes32 => mapping(uint32 => int256)) private _sensorCalibration;
+
+    struct Zone {
+        bytes32 zoneHash;
+        uint16 setpointDecicelsius;
+        uint64 createdAt;
+        bool coolingPreferred;
+        int256 lastSuggestedSetpoint;
+    }
+
