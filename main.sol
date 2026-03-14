@@ -362,3 +362,94 @@ contract FridgAI {
     }
 
     function recordSetpointReading(
+        bytes32 zoneId,
+        uint32 readingIndex,
+        int256 tempScaled,
+        bytes32 sensorRoot
+    ) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (readingIndex >= MAX_READINGS_PER_ZONE) revert FRG_ReadingIndexOutOfRange();
+
+        _readings[zoneId][readingIndex] = SetpointReading({
+            tempScaled: tempScaled,
+            sensorRoot: sensorRoot,
+            recordedAt: uint64(block.timestamp)
+        });
+        _readingCount[zoneId] = readingIndex + 1 > _readingCount[zoneId] ? readingIndex + 1 : _readingCount[zoneId];
+
+        emit SetpointRecorded(zoneId, readingIndex, tempScaled, sensorRoot, block.timestamp);
+    }
+
+    function anchorHysteresisBand(
+        bytes32 zoneId,
+        uint32 bandIndex,
+        int256 lowThresholdScaled,
+        int256 highThresholdScaled
+    ) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (bandIndex >= MAX_HYSTERESIS_BANDS) revert FRG_BandIndexOutOfRange();
+        if (lowThresholdScaled >= highThresholdScaled) revert FRG_HysteresisBandInvalid();
+
+        _bands[zoneId][bandIndex] = HysteresisBand({
+            lowThresholdScaled: lowThresholdScaled,
+            highThresholdScaled: highThresholdScaled,
+            bandIndex: bandIndex
+        });
+        _bandCount[zoneId] = bandIndex + 1 > _bandCount[zoneId] ? bandIndex + 1 : _bandCount[zoneId];
+
+        bytes32 bandHash = keccak256(abi.encode(lowThresholdScaled, highThresholdScaled, bandIndex));
+        emit HysteresisAnchored(zoneId, bandIndex, bandHash, block.timestamp);
+    }
+
+    function bindScheduleWindow(
+        bytes32 zoneId,
+        uint256 startBlock,
+        uint256 endBlock,
+        uint16 setpointDecicelsius
+    ) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (startBlock >= endBlock) revert FRG_InvalidScheduleWindow();
+        if (setpointDecicelsius < MIN_SETPOINT_DECICELSIUS || setpointDecicelsius > MAX_SETPOINT_DECICELSIUS) revert FRG_SetpointOutOfBounds();
+
+        ScheduleWindow[] storage windows = _schedules[zoneId];
+        if (windows.length >= MAX_SCHEDULE_WINDOWS_PER_ZONE) revert FRG_InvalidScheduleWindow();
+        windows.push(ScheduleWindow({ startBlock: startBlock, endBlock: endBlock, setpointDecicelsius: setpointDecicelsius }));
+
+        emit ScheduleBound(zoneId, startBlock, endBlock, block.timestamp);
+    }
+
+    function applySetpointSuggestion(bytes32 zoneId, int256 suggestedDecicelsius) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (suggestedDecicelsius < 0 || suggestedDecicelsius > int256(MAX_SETPOINT_DECICELSIUS)) revert FRG_SetpointOutOfBounds();
+
+        _zones[zoneId].setpointDecicelsius = uint16(uint256(int256(suggestedDecicelsius)));
+        _zones[zoneId].lastSuggestedSetpoint = suggestedDecicelsius;
+        emit SetpointSuggestionApplied(zoneId, suggestedDecicelsius, msg.sender);
+    }
+
+    function setAmbientOverride(bytes32 zoneId, bool coolingActive) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        _zones[zoneId].coolingPreferred = coolingActive;
+        emit AmbientOverride(zoneId, coolingActive, block.timestamp);
+    }
+
+    function logDefrostCycle(bytes32 zoneId, uint256 durationSeconds) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (durationSeconds > DEFROST_MAX_DURATION) revert FRG_InvalidScheduleWindow();
+        _defrostLastAt[zoneId] = block.timestamp;
+        emit DefrostCycleLogged(zoneId, durationSeconds, block.timestamp);
+    }
+
+    function archiveZone(bytes32 zoneId) external onlyClimateCurator {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        _archived[zoneId] = true;
+        emit ZoneArchived(zoneId, msg.sender, block.timestamp);
+    }
+
