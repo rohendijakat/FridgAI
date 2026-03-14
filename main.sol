@@ -544,3 +544,94 @@ contract FridgAI {
         if (_archived[zoneA] || _archived[zoneB]) revert FRG_ZoneAlreadyArchived();
         if (_linkExists[zoneA][zoneB]) revert FRG_ZoneAlreadyLinked();
         bytes32[] storage linksA = _linkedZones[zoneA];
+        if (linksA.length >= MAX_LINKED_ZONES) revert FRG_InvalidScheduleWindow();
+        linksA.push(zoneB);
+        _linkExists[zoneA][zoneB] = true;
+        _linkedZones[zoneB].push(zoneA);
+        _linkExists[zoneB][zoneA] = true;
+        emit ZoneLinked(zoneA, zoneB, block.timestamp);
+    }
+
+    function unlinkZones(bytes32 zoneA, bytes32 zoneB) external onlyClimateCurator {
+        if (!_linkExists[zoneA][zoneB]) revert FRG_ZoneNotLinked();
+        _removeLink(zoneA, zoneB);
+        _removeLink(zoneB, zoneA);
+        _linkExists[zoneA][zoneB] = false;
+        _linkExists[zoneB][zoneA] = false;
+        emit ZoneUnlinked(zoneA, zoneB, block.timestamp);
+    }
+
+    function _removeLink(bytes32 zoneId, bytes32 other) private {
+        bytes32[] storage links = _linkedZones[zoneId];
+        for (uint256 i = 0; i < links.length; i++) {
+            if (links[i] == other) {
+                links[i] = links[links.length - 1];
+                links.pop();
+                return;
+            }
+        }
+    }
+
+    function emergencySetpointOverride(bytes32 zoneId, uint16 setpointDecicelsius) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        if (setpointDecicelsius < MIN_SETPOINT_DECICELSIUS || setpointDecicelsius > MAX_SETPOINT_DECICELSIUS) revert FRG_SetpointOutOfBounds();
+        _zones[zoneId].setpointDecicelsius = setpointDecicelsius;
+        emit EmergencySetpointOverride(zoneId, setpointDecicelsius, msg.sender, block.timestamp);
+    }
+
+    function incrementOperatorNonce() external whenNotPaused {
+        _operatorNonce[msg.sender] += 1;
+        emit OperatorNonceIncremented(msg.sender, _operatorNonce[msg.sender], block.timestamp);
+    }
+
+    function batchRegisterZones(
+        bytes32[] calldata zoneIds,
+        uint16[] calldata setpointsDecicelsius,
+        bytes32[] calldata zoneHashes,
+        bool[] calldata coolingPreferred
+    ) external payable whenNotPaused nonReentrant {
+        uint256 n = zoneIds.length;
+        if (n == 0) revert FRG_BatchSizeZero();
+        if (n > MAX_BATCH_ZONES) revert FRG_BatchSizeTooLarge();
+        if (n != setpointsDecicelsius.length || n != zoneHashes.length || n != coolingPreferred.length) revert FRG_ReadingCountMismatch();
+        uint256 totalFee = anchorFeeWei * n;
+        if (msg.value < totalFee) revert FRG_AnchorFeeRequired();
+        for (uint256 i = 0; i < n; i++) {
+            bytes32 zid = zoneIds[i];
+            if (zid == bytes32(0)) revert FRG_InvalidZoneId();
+            if (zoneHashes[i] == bytes32(0)) revert FRG_InvalidZoneHash();
+            if (setpointsDecicelsius[i] < MIN_SETPOINT_DECICELSIUS || setpointsDecicelsius[i] > MAX_SETPOINT_DECICELSIUS) revert FRG_SetpointOutOfBounds();
+            if (_zones[zid].createdAt != 0) revert FRG_AlreadyInitialized();
+            if (_archived[zid]) revert FRG_ZoneAlreadyArchived();
+            _zones[zid] = Zone({
+                zoneHash: zoneHashes[i],
+                setpointDecicelsius: setpointsDecicelsius[i],
+                createdAt: uint64(block.timestamp),
+                coolingPreferred: coolingPreferred[i],
+                lastSuggestedSetpoint: 0
+            });
+            emit ZoneRegistered(zid, msg.sender, setpointsDecicelsius[i], zoneHashes[i], block.timestamp);
+        }
+        (bool sent,) = feeCollector.call{value: totalFee}("");
+        if (!sent) revert FRG_TransferFailed();
+        if (msg.value > totalFee) {
+            (bool refund,) = msg.sender.call{value: msg.value - totalFee}("");
+            if (!refund) revert FRG_TransferFailed();
+        }
+        emit BatchZonesRegistered(n, msg.sender, block.timestamp);
+    }
+
+    function batchRecordSetpointReadings(
+        bytes32 zoneId,
+        uint32 startIndex,
+        int256[] calldata tempsScaled,
+        bytes32[] calldata sensorRoots
+    ) external onlyClimateCurator whenNotPaused {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+        uint256 n = tempsScaled.length;
+        if (n == 0) revert FRG_BatchSizeZero();
+        if (n > MAX_BATCH_READINGS) revert FRG_BatchSizeTooLarge();
+        if (n != sensorRoots.length) revert FRG_ReadingCountMismatch();
+        for (uint256 i = 0; i < n; i++) {
