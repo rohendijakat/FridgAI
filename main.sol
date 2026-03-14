@@ -999,3 +999,94 @@ contract FridgAI {
 
     function domainSeparator() external pure returns (bytes32) {
         return FRG_DOMAIN;
+    }
+
+    function version() external pure returns (uint256) {
+        return FRG_VERSION;
+    }
+
+    function maxReadingsPerZone() external pure returns (uint256) {
+        return MAX_READINGS_PER_ZONE;
+    }
+
+    function maxHysteresisBands() external pure returns (uint256) {
+        return MAX_HYSTERESIS_BANDS;
+    }
+
+    function tempScaleFactor() external pure returns (uint256) {
+        return TEMP_SCALE_FACTOR;
+    }
+
+    function minSetpointDecicelsius() external pure returns (uint256) {
+        return MIN_SETPOINT_DECICELSIUS;
+    }
+
+    function maxSetpointDecicelsius() external pure returns (uint256) {
+        return MAX_SETPOINT_DECICELSIUS;
+    }
+
+    function maxScheduleWindowsPerZone() external pure returns (uint256) {
+        return MAX_SCHEDULE_WINDOWS_PER_ZONE;
+    }
+
+    function defrostMaxDuration() external pure returns (uint256) {
+        return DEFROST_MAX_DURATION;
+    }
+
+    function maxLabelLength() external pure returns (uint256) {
+        return MAX_LABEL_LENGTH;
+    }
+
+    function maxBatchZones() external pure returns (uint256) {
+        return MAX_BATCH_ZONES;
+    }
+
+    function maxBatchReadings() external pure returns (uint256) {
+        return MAX_BATCH_READINGS;
+    }
+
+    function thermostatModeOff() external pure returns (uint256) {
+        return THERMOSTAT_MODE_OFF;
+    }
+
+    function thermostatModeCool() external pure returns (uint256) {
+        return THERMOSTAT_MODE_COOL;
+    }
+
+    function thermostatModeHeat() external pure returns (uint256) {
+        return THERMOSTAT_MODE_HEAT;
+    }
+
+    function thermostatModeAuto() external pure returns (uint256) {
+        return THERMOSTAT_MODE_AUTO;
+    }
+
+    function maxFanPresets() external pure returns (uint256) {
+        return MAX_FAN_PRESETS;
+    }
+
+    function maxHumidityPercent() external pure returns (uint256) {
+        return MAX_HUMIDITY_PERCENT;
+    }
+
+    function calibrationOffsetMax() external pure returns (uint256) {
+        return CALIBRATION_OFFSET_MAX;
+    }
+
+    function maxLinkedZones() external pure returns (uint256) {
+        return MAX_LINKED_ZONES;
+    }
+
+    function getImmutableAddresses() external view returns (
+        address hub,
+        address collector,
+        address treasury
+    ) {
+        return (climateHub, feeCollector, fallbackTreasury);
+    }
+
+    function getCurator() external view returns (address) {
+        return climateCurator;
+    }
+
+    function getAnchorFeeWei() external view returns (uint256) {
