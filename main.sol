@@ -271,3 +271,94 @@ contract FridgAI {
         int256 lastSuggestedSetpoint;
     }
 
+    struct ScheduleWindow {
+        uint256 startBlock;
+        uint256 endBlock;
+        uint16 setpointDecicelsius;
+    }
+
+    struct HysteresisBand {
+        int256 lowThresholdScaled;
+        int256 highThresholdScaled;
+        uint32 bandIndex;
+    }
+
+    mapping(bytes32 => mapping(uint32 => HysteresisBand)) private _bands;
+    mapping(bytes32 => mapping(uint32 => SetpointReading)) private _readings;
+
+    struct SetpointReading {
+        int256 tempScaled;
+        bytes32 sensorRoot;
+        uint64 recordedAt;
+    }
+
+    // -------------------------------------------------------------------------
+    // MODIFIERS
+    // -------------------------------------------------------------------------
+
+    modifier onlyClimateCurator() {
+        if (msg.sender != climateCurator) revert FRG_NotClimateCurator();
+        _;
+    }
+
+    modifier whenNotPaused() {
+        if (_paused) revert FRG_Paused();
+        _;
+    }
+
+    modifier nonReentrant() {
+        if (_guard == 1) revert FRG_Reentrancy();
+        _guard = 1;
+        _;
+        _guard = 0;
+    }
+
+    // -------------------------------------------------------------------------
+    // CONSTRUCTOR
+    // -------------------------------------------------------------------------
+
+    constructor() {
+        climateHub = address(0xFa3c8E1b7D4f0A2e6C9b5D8f1a4E7c0B3F6d9A2e5);
+        feeCollector = address(0x2E7b0D4f8A1c6E9b3F0d5A8c2E6f1B4a7D9c0E3F6);
+        fallbackTreasury = address(0xC1a5E8f2B6d9A3c0E7f4B1d8C5a2E9b6F0c3D7e1);
+        climateCurator = address(0x6B9e2D5f8A1c4E7b0D3f6A9c2E5b8F1d4C7a0E3B6);
+        anchorFeeWei = 0.001 ether;
+        _nextZoneId = 1;
+    }
+
+    // -------------------------------------------------------------------------
+    // EXTERNAL: ZONE LIFECYCLE
+    // -------------------------------------------------------------------------
+
+    function registerZone(
+        bytes32 zoneId,
+        uint16 setpointDecicelsius,
+        bytes32 zoneHash,
+        bool coolingPreferred
+    ) external payable whenNotPaused nonReentrant {
+        if (zoneId == bytes32(0)) revert FRG_InvalidZoneId();
+        if (zoneHash == bytes32(0)) revert FRG_InvalidZoneHash();
+        if (msg.value < anchorFeeWei) revert FRG_AnchorFeeRequired();
+        if (setpointDecicelsius < MIN_SETPOINT_DECICELSIUS || setpointDecicelsius > MAX_SETPOINT_DECICELSIUS) revert FRG_SetpointOutOfBounds();
+        if (_zones[zoneId].createdAt != 0) revert FRG_AlreadyInitialized();
+        if (_archived[zoneId]) revert FRG_ZoneAlreadyArchived();
+
+        _zones[zoneId] = Zone({
+            zoneHash: zoneHash,
+            setpointDecicelsius: setpointDecicelsius,
+            createdAt: uint64(block.timestamp),
+            coolingPreferred: coolingPreferred,
+            lastSuggestedSetpoint: 0
+        });
+
+        (bool sent,) = feeCollector.call{value: anchorFeeWei}("");
+        if (!sent) revert FRG_TransferFailed();
+        if (msg.value > anchorFeeWei) {
+            (bool refund,) = msg.sender.call{value: msg.value - anchorFeeWei}("");
+            if (!refund) revert FRG_TransferFailed();
+        }
+
+        emit ZoneRegistered(zoneId, msg.sender, setpointDecicelsius, zoneHash, block.timestamp);
+    }
+
+    function recordSetpointReading(
