@@ -726,3 +726,94 @@ contract FridgAI {
         return _paused;
     }
 
+    function getCalibrationOffset(bytes32 zoneId) external view returns (int256) {
+        return _calibrationOffset[zoneId];
+    }
+
+    function getHumiditySnapshot(bytes32 zoneId) external view returns (uint16) {
+        return _humiditySnapshot[zoneId];
+    }
+
+    function getCooldownUntilBlock(bytes32 zoneId) external view returns (uint256) {
+        return _cooldownUntilBlock[zoneId];
+    }
+
+    function getThermostatMode(bytes32 zoneId) external view returns (uint8) {
+        return _thermostatMode[zoneId];
+    }
+
+    function getFrostGuardEnabled(bytes32 zoneId) external view returns (bool) {
+        return _frostGuardEnabled[zoneId];
+    }
+
+    function getNightSetback(bytes32 zoneId) external view returns (uint16) {
+        return _nightSetbackDecicelsius[zoneId];
+    }
+
+    function getDaySetforward(bytes32 zoneId) external view returns (uint16) {
+        return _daySetforwardDecicelsius[zoneId];
+    }
+
+    function getZoneLabel(bytes32 zoneId) external view returns (string memory) {
+        return _zoneLabel[zoneId];
+    }
+
+    function getLinkedZoneCount(bytes32 zoneId) external view returns (uint256) {
+        return _linkedZones[zoneId].length;
+    }
+
+    function getLinkedZone(bytes32 zoneId, uint256 index) external view returns (bytes32) {
+        bytes32[] storage links = _linkedZones[zoneId];
+        if (index >= links.length) revert FRG_ReadingIndexOutOfRange();
+        return links[index];
+    }
+
+    function areZonesLinked(bytes32 zoneA, bytes32 zoneB) external view returns (bool) {
+        return _linkExists[zoneA][zoneB];
+    }
+
+    function getFanPresetSpeed(bytes32 zoneId, uint8 presetIndex) external view returns (uint8) {
+        return _fanPresetSpeed[zoneId][presetIndex];
+    }
+
+    function getSensorCalibration(bytes32 zoneId, uint32 sensorIndex) external view returns (int256) {
+        return _sensorCalibration[zoneId][sensorIndex];
+    }
+
+    function operatorNonce(address account) external view returns (uint256) {
+        return _operatorNonce[account];
+    }
+
+    function isInCooldown(bytes32 zoneId) external view returns (bool) {
+        return block.number < _cooldownUntilBlock[zoneId];
+    }
+
+    function getEffectiveSetpointAtBlock(bytes32 zoneId, uint256 blockNum) external view returns (uint16) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        Zone storage z = _zones[zoneId];
+        ScheduleWindow[] storage windows = _schedules[zoneId];
+        uint256 len = windows.length;
+        for (uint256 i = 0; i < len; i++) {
+            if (blockNum >= windows[i].startBlock && blockNum <= windows[i].endBlock) {
+                return windows[i].setpointDecicelsius;
+            }
+        }
+        return z.setpointDecicelsius;
+    }
+
+    function getEffectiveSetpointNow(bytes32 zoneId) external view returns (uint16) {
+        return this.getEffectiveSetpointAtBlock(zoneId, block.number);
+    }
+
+    function getCorrectedReading(bytes32 zoneId, uint32 readingIndex) external view returns (int256) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (readingIndex >= _readingCount[zoneId]) revert FRG_ReadingIndexOutOfRange();
+        SetpointReading storage r = _readings[zoneId][readingIndex];
+        int256 cal = _sensorCalibration[zoneId][readingIndex];
+        return r.tempScaled + cal;
+    }
+
+    function getZoneFull(bytes32 zoneId) external view returns (
+        bytes32 zoneHash,
+        uint16 setpointDecicelsius,
+        uint64 createdAt,
