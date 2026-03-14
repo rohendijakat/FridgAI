@@ -817,3 +817,94 @@ contract FridgAI {
         bytes32 zoneHash,
         uint16 setpointDecicelsius,
         uint64 createdAt,
+        bool coolingPreferred,
+        int256 lastSuggestedSetpoint,
+        int256 calibrationOffset,
+        uint16 humiditySnapshot,
+        uint8 thermostatMode,
+        bool frostGuardEnabled,
+        string memory label
+    ) {
+        Zone storage z = _zones[zoneId];
+        if (z.createdAt == 0) revert FRG_ZoneNotFound();
+        return (
+            z.zoneHash,
+            z.setpointDecicelsius,
+            z.createdAt,
+            z.coolingPreferred,
+            z.lastSuggestedSetpoint,
+            _calibrationOffset[zoneId],
+            _humiditySnapshot[zoneId],
+            _thermostatMode[zoneId],
+            _frostGuardEnabled[zoneId],
+            _zoneLabel[zoneId]
+        );
+    }
+
+    function getZoneSetpointAndMode(bytes32 zoneId) external view returns (uint16 setpoint, uint8 mode) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        return (_zones[zoneId].setpointDecicelsius, _thermostatMode[zoneId]);
+    }
+
+    function getZoneCreatedAt(bytes32 zoneId) external view returns (uint64) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        return _zones[zoneId].createdAt;
+    }
+
+    function getZoneCoolingPreferred(bytes32 zoneId) external view returns (bool) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        return _zones[zoneId].coolingPreferred;
+    }
+
+    function getZoneLastSuggestedSetpoint(bytes32 zoneId) external view returns (int256) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        return _zones[zoneId].lastSuggestedSetpoint;
+    }
+
+    function getZoneHash(bytes32 zoneId) external view returns (bytes32) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        return _zones[zoneId].zoneHash;
+    }
+
+    function getReadingsRange(bytes32 zoneId, uint32 fromIndex, uint32 toIndex) external view returns (
+        int256[] memory tempsScaled,
+        bytes32[] memory sensorRoots,
+        uint64[] memory recordedAts
+    ) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        uint32 count = _readingCount[zoneId];
+        if (fromIndex >= count || toIndex >= count || fromIndex > toIndex) revert FRG_ReadingIndexOutOfRange();
+        uint256 len = uint256(toIndex - fromIndex + 1);
+        tempsScaled = new int256[](len);
+        sensorRoots = new bytes32[](len);
+        recordedAts = new uint64[](len);
+        for (uint256 i = 0; i < len; i++) {
+            SetpointReading storage r = _readings[zoneId][fromIndex + uint32(i)];
+            tempsScaled[i] = r.tempScaled;
+            sensorRoots[i] = r.sensorRoot;
+            recordedAts[i] = r.recordedAt;
+        }
+    }
+
+    function getBandsRange(bytes32 zoneId, uint32 fromIndex, uint32 toIndex) external view returns (
+        int256[] memory lowThresholds,
+        int256[] memory highThresholds,
+        uint32[] memory bandIndices
+    ) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        uint32 count = _bandCount[zoneId];
+        if (fromIndex >= count || toIndex >= count || fromIndex > toIndex) revert FRG_BandIndexOutOfRange();
+        uint256 len = uint256(toIndex - fromIndex + 1);
+        lowThresholds = new int256[](len);
+        highThresholds = new int256[](len);
+        bandIndices = new uint32[](len);
+        for (uint256 i = 0; i < len; i++) {
+            HysteresisBand storage b = _bands[zoneId][fromIndex + uint32(i)];
+            lowThresholds[i] = b.lowThresholdScaled;
+            highThresholds[i] = b.highThresholdScaled;
+            bandIndices[i] = b.bandIndex;
+        }
+    }
+
+    function getScheduleWindows(bytes32 zoneId) external view returns (
+        uint256[] memory startBlocks,
