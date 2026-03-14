@@ -635,3 +635,94 @@ contract FridgAI {
         if (n > MAX_BATCH_READINGS) revert FRG_BatchSizeTooLarge();
         if (n != sensorRoots.length) revert FRG_ReadingCountMismatch();
         for (uint256 i = 0; i < n; i++) {
+            uint32 idx = startIndex + uint32(i);
+            if (idx >= MAX_READINGS_PER_ZONE) revert FRG_ReadingIndexOutOfRange();
+            _readings[zoneId][idx] = SetpointReading({
+                tempScaled: tempsScaled[i],
+                sensorRoot: sensorRoots[i],
+                recordedAt: uint64(block.timestamp)
+            });
+        }
+        if (startIndex + uint32(n) > _readingCount[zoneId]) _readingCount[zoneId] = startIndex + uint32(n);
+        emit BatchReadingsRecorded(zoneId, startIndex, uint32(n), block.timestamp);
+    }
+
+    // -------------------------------------------------------------------------
+    // EXTERNAL: VIEW
+    // -------------------------------------------------------------------------
+
+    function getZone(bytes32 zoneId) external view returns (
+        bytes32 zoneHash,
+        uint16 setpointDecicelsius,
+        uint64 createdAt,
+        bool coolingPreferred,
+        int256 lastSuggestedSetpoint
+    ) {
+        Zone storage z = _zones[zoneId];
+        if (z.createdAt == 0) revert FRG_ZoneNotFound();
+        return (z.zoneHash, z.setpointDecicelsius, z.createdAt, z.coolingPreferred, z.lastSuggestedSetpoint);
+    }
+
+    function getSetpointReading(bytes32 zoneId, uint32 readingIndex) external view returns (
+        int256 tempScaled,
+        bytes32 sensorRoot,
+        uint64 recordedAt
+    ) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (readingIndex >= _readingCount[zoneId]) revert FRG_ReadingIndexOutOfRange();
+        SetpointReading storage r = _readings[zoneId][readingIndex];
+        return (r.tempScaled, r.sensorRoot, r.recordedAt);
+    }
+
+    function getHysteresisBand(bytes32 zoneId, uint32 bandIndex) external view returns (
+        int256 lowThresholdScaled,
+        int256 highThresholdScaled,
+        uint32 bandIndexOut
+    ) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (bandIndex >= _bandCount[zoneId]) revert FRG_BandIndexOutOfRange();
+        HysteresisBand storage b = _bands[zoneId][bandIndex];
+        return (b.lowThresholdScaled, b.highThresholdScaled, b.bandIndex);
+    }
+
+    function getScheduleWindowCount(bytes32 zoneId) external view returns (uint256) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        return _schedules[zoneId].length;
+    }
+
+    function getScheduleWindow(bytes32 zoneId, uint256 index) external view returns (
+        uint256 startBlock,
+        uint256 endBlock,
+        uint16 setpointDecicelsius
+    ) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        ScheduleWindow[] storage windows = _schedules[zoneId];
+        if (index >= windows.length) revert FRG_ReadingIndexOutOfRange();
+        ScheduleWindow storage w = windows[index];
+        return (w.startBlock, w.endBlock, w.setpointDecicelsius);
+    }
+
+    function readingCount(bytes32 zoneId) external view returns (uint32) {
+        return _readingCount[zoneId];
+    }
+
+    function bandCount(bytes32 zoneId) external view returns (uint32) {
+        return _bandCount[zoneId];
+    }
+
+    function isArchived(bytes32 zoneId) external view returns (bool) {
+        return _archived[zoneId];
+    }
+
+    function defrostLastAt(bytes32 zoneId) external view returns (uint256) {
+        return _defrostLastAt[zoneId];
+    }
+
+    function nextZoneId() external view returns (uint256) {
+        return _nextZoneId;
+    }
+
+    function paused() external view returns (bool) {
+        return _paused;
+    }
+
