@@ -1272,3 +1272,94 @@ contract FridgAI {
 
     function _readingCountForZone(bytes32 zoneId) internal view returns (uint32) {
         return _readingCount[zoneId];
+    }
+
+    function _bandCountForZone(bytes32 zoneId) internal view returns (uint32) {
+        return _bandCount[zoneId];
+    }
+
+    function _isCooldownActive(bytes32 zoneId) internal view returns (bool) {
+        return block.number < _cooldownUntilBlock[zoneId];
+    }
+
+    function _linkedCount(bytes32 zoneId) internal view returns (uint256) {
+        return _linkedZones[zoneId].length;
+    }
+
+    function _getLinkedAt(bytes32 zoneId, uint256 index) internal view returns (bytes32) {
+        return _linkedZones[zoneId][index];
+    }
+
+    function _hasLink(bytes32 a, bytes32 b) internal view returns (bool) {
+        return _linkExists[a][b];
+    }
+
+    function _fanSpeed(bytes32 zoneId, uint8 presetIndex) internal view returns (uint8) {
+        return _fanPresetSpeed[zoneId][presetIndex];
+    }
+
+    function _calibration(bytes32 zoneId) internal view returns (int256) {
+        return _calibrationOffset[zoneId];
+    }
+
+    function _humidity(bytes32 zoneId) internal view returns (uint16) {
+        return _humiditySnapshot[zoneId];
+    }
+
+    function _thermostatModeFor(bytes32 zoneId) internal view returns (uint8) {
+        return _thermostatMode[zoneId];
+    }
+
+    function _frostGuard(bytes32 zoneId) internal view returns (bool) {
+        return _frostGuardEnabled[zoneId];
+    }
+
+    function _nightSetback(bytes32 zoneId) internal view returns (uint16) {
+        return _nightSetbackDecicelsius[zoneId];
+    }
+
+    function _daySetforward(bytes32 zoneId) internal view returns (uint16) {
+        return _daySetforwardDecicelsius[zoneId];
+    }
+
+    function _label(bytes32 zoneId) internal view returns (string memory) {
+        return _zoneLabel[zoneId];
+    }
+
+    function _defrostAt(bytes32 zoneId) internal view returns (uint256) {
+        return _defrostLastAt[zoneId];
+    }
+
+    function _sensorCal(bytes32 zoneId, uint32 sensorIndex) internal view returns (int256) {
+        return _sensorCalibration[zoneId][sensorIndex];
+    }
+
+    function getScheduleWindowCountPublic(bytes32 zoneId) external view returns (uint256) {
+        return _schedules[zoneId].length;
+    }
+
+    function getLastReadingTemp(bytes32 zoneId) external view returns (int256 tempScaled, bool hasReading) {
+        uint32 n = _readingCount[zoneId];
+        if (n == 0) return (0, false);
+        tempScaled = _readings[zoneId][n - 1].tempScaled;
+        hasReading = true;
+    }
+
+    function getLastReadingSensorRoot(bytes32 zoneId) external view returns (bytes32 root, bool hasReading) {
+        uint32 n = _readingCount[zoneId];
+        if (n == 0) return (bytes32(0), false);
+        root = _readings[zoneId][n - 1].sensorRoot;
+        hasReading = true;
+    }
+
+    function getLastReadingRecordedAt(bytes32 zoneId) external view returns (uint64 at, bool hasReading) {
+        uint32 n = _readingCount[zoneId];
+        if (n == 0) return (0, false);
+        at = _readings[zoneId][n - 1].recordedAt;
+        hasReading = true;
+    }
+
+    function hasAnySchedule(bytes32 zoneId) external view returns (bool) {
+        return _schedules[zoneId].length > 0;
+    }
+
