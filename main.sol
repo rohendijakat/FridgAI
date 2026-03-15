@@ -1181,3 +1181,94 @@ contract FridgAI {
         for (uint256 i = 0; i < n; i++) enabled[i] = _frostGuardEnabled[zoneIds[i]];
     }
 
+    function getDefrostLastAtBatch(bytes32[] calldata zoneIds) external view returns (uint256[] memory timestamps) {
+        uint256 n = zoneIds.length;
+        timestamps = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) timestamps[i] = _defrostLastAt[zoneIds[i]];
+    }
+
+    function computeZoneHash(bytes32 zoneId, uint16 setpoint, bool cooling, bytes32 extra) external pure returns (bytes32) {
+        return keccak256(abi.encode(FRG_DOMAIN, zoneId, setpoint, cooling, extra));
+    }
+
+    function withinHysteresisForZone(bytes32 zoneId, uint32 bandIndex, int256 readingScaled) external view returns (bool) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        if (bandIndex >= _bandCount[zoneId]) revert FRG_BandIndexOutOfRange();
+        HysteresisBand storage b = _bands[zoneId][bandIndex];
+        return FridgAIMath.withinHysteresis(readingScaled, b.lowThresholdScaled, b.highThresholdScaled);
+    }
+
+    function clampSetpoint(int256 decicelsius) external pure returns (uint16) {
+        int256 c = FridgAIMath.clampInt(decicelsius, int256(uint256(MIN_SETPOINT_DECICELSIUS)), int256(uint256(MAX_SETPOINT_DECICELSIUS)));
+        return uint16(uint256(c));
+    }
+
+    // -------------------------------------------------------------------------
+    // EXTERNAL: ADMIN
+    // -------------------------------------------------------------------------
+
+    function setClimateCurator(address newCurator) external onlyClimateCurator {
+        if (newCurator == address(0)) revert FRG_ZeroAddress();
+        address prev = climateCurator;
+        climateCurator = newCurator;
+        emit ClimateCuratorUpdated(prev, newCurator);
+    }
+
+    function setPaused(bool p) external onlyClimateCurator {
+        _paused = p;
+    }
+
+    function pullTreasury(address to, uint256 amountWei) external onlyClimateCurator nonReentrant {
+        if (to == address(0)) revert FRG_ZeroAddress();
+        (bool sent,) = to.call{value: amountWei}("");
+        if (!sent) revert FRG_TransferFailed();
+        emit TreasuryPull(to, amountWei, block.timestamp);
+    }
+
+    receive() external payable {}
+
+    // -------------------------------------------------------------------------
+    // INTERNAL HELPERS
+    // -------------------------------------------------------------------------
+
+    function _zoneExists(bytes32 zoneId) internal view returns (bool) {
+        return _zones[zoneId].createdAt != 0;
+    }
+
+    function _zoneActive(bytes32 zoneId) internal view returns (bool) {
+        return _zoneExists(zoneId) && !_archived[zoneId];
+    }
+
+    function _applyCalibration(int256 rawScaled, bytes32 zoneId, uint32 sensorIndex) internal view returns (int256) {
+        int256 cal = _sensorCalibration[zoneId][sensorIndex];
+        return rawScaled + cal;
+    }
+
+    function _effectiveSetpointWithSetback(bytes32 zoneId, bool useNightSetback) internal view returns (uint16) {
+        Zone storage z = _zones[zoneId];
+        if (useNightSetback && _nightSetbackDecicelsius[zoneId] > 0) {
+            return FridgAIMath.min(uint256(z.setpointDecicelsius), uint256(_nightSetbackDecicelsius[zoneId]));
+        }
+        if (!useNightSetback && _daySetforwardDecicelsius[zoneId] > 0) {
+            return FridgAIMath.max(uint256(z.setpointDecicelsius), uint256(_daySetforwardDecicelsius[zoneId]));
+        }
+        return z.setpointDecicelsius;
+    }
+
+    function _scheduleWindowCount(bytes32 zoneId) internal view returns (uint256) {
+        return _schedules[zoneId].length;
+    }
+
+    function _getScheduleAt(bytes32 zoneId, uint256 index) internal view returns (
+        uint256 startBlock,
+        uint256 endBlock,
+        uint16 setpointDecicelsius
+    ) {
+        ScheduleWindow[] storage w = _schedules[zoneId];
+        require(index < w.length, "FRG_ReadingIndexOutOfRange");
+        ScheduleWindow storage s = w[index];
+        return (s.startBlock, s.endBlock, s.setpointDecicelsius);
+    }
+
+    function _readingCountForZone(bytes32 zoneId) internal view returns (uint32) {
+        return _readingCount[zoneId];
