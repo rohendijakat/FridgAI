@@ -1363,3 +1363,94 @@ contract FridgAI {
         return _schedules[zoneId].length > 0;
     }
 
+    function hasAnyReadings(bytes32 zoneId) external view returns (bool) {
+        return _readingCount[zoneId] > 0;
+    }
+
+    function hasAnyBands(bytes32 zoneId) external view returns (bool) {
+        return _bandCount[zoneId] > 0;
+    }
+
+    function hasAnyLinkedZones(bytes32 zoneId) external view returns (bool) {
+        return _linkedZones[zoneId].length > 0;
+    }
+
+    function getCooldownRemainingBlocks(bytes32 zoneId) external view returns (uint256 blocksRemaining) {
+        uint256 until = _cooldownUntilBlock[zoneId];
+        if (until == 0 || block.number >= until) return 0;
+        return until - block.number;
+    }
+
+    function getSetpointWithCalibration(bytes32 zoneId) external view returns (uint16 setpoint, int256 offset) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        setpoint = _zones[zoneId].setpointDecicelsius;
+        offset = _calibrationOffset[zoneId];
+    }
+
+    function getZoneSummary(bytes32 zoneId) external view returns (
+        uint16 setpoint,
+        uint32 numReadings,
+        uint32 numBands,
+        uint256 numSchedules,
+        uint256 numLinked,
+        uint8 mode,
+        bool frostGuard
+    ) {
+        if (_zones[zoneId].createdAt == 0) revert FRG_ZoneNotFound();
+        return (
+            _zones[zoneId].setpointDecicelsius,
+            _readingCount[zoneId],
+            _bandCount[zoneId],
+            _schedules[zoneId].length,
+            _linkedZones[zoneId].length,
+            _thermostatMode[zoneId],
+            _frostGuardEnabled[zoneId]
+        );
+    }
+
+    function supportsThermostatMode(uint8 mode) external pure returns (bool) {
+        return mode <= THERMOSTAT_MODE_AUTO;
+    }
+
+    function isValidSetpoint(uint16 setpoint) external pure returns (bool) {
+        return setpoint >= MIN_SETPOINT_DECICELSIUS && setpoint <= MAX_SETPOINT_DECICELSIUS;
+    }
+
+    function isValidHumidity(uint16 humidity) external pure returns (bool) {
+        return humidity <= MAX_HUMIDITY_PERCENT;
+    }
+
+    function isValidFanPresetIndex(uint8 index) external pure returns (bool) {
+        return index < MAX_FAN_PRESETS;
+    }
+
+    function isValidScheduleWindow(uint256 startBlock, uint256 endBlock) external pure returns (bool) {
+        return startBlock < endBlock;
+    }
+
+    function encodeZoneParams(uint16 setpoint, bool cooling, bytes32 extra) external pure returns (bytes32) {
+        return keccak256(abi.encode(setpoint, cooling, extra));
+    }
+
+    function decodeZoneHash(bytes32 zoneHash) external pure returns (bytes32) {
+        return zoneHash;
+    }
+
+    function getBlockNumber() external view returns (uint256) {
+        return block.number;
+    }
+
+    function getBlockTimestamp() external view returns (uint256) {
+        return block.timestamp;
+    }
+
+    function getChainId() external view returns (uint256) {
+        return block.chainid;
+    }
+
+    function getContractBalance() external view returns (uint256) {
+        return address(this).balance;
+    }
+
+    function getFeeCollectorBalance() external view returns (uint256) {
+        return feeCollector.balance;
