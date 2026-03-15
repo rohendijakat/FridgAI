@@ -1545,3 +1545,78 @@ contract FridgAI {
     }
 
     function computeAnchorFeeForBatch(uint256 count) external view returns (uint256) {
+        require(count <= MAX_BATCH_ZONES, "FRG_BatchSizeTooLarge");
+        return anchorFeeWei * count;
+    }
+
+    function getConstantsBundle() external pure returns (
+        uint256 version,
+        uint256 maxReadings,
+        uint256 maxBands,
+        uint256 scaleFactor,
+        uint256 minSetpoint,
+        uint256 maxSetpoint,
+        uint256 maxScheduleWindows,
+        uint256 defrostMax
+    ) {
+        return (
+            FRG_VERSION,
+            MAX_READINGS_PER_ZONE,
+            MAX_HYSTERESIS_BANDS,
+            TEMP_SCALE_FACTOR,
+            MIN_SETPOINT_DECICELSIUS,
+            MAX_SETPOINT_DECICELSIUS,
+            MAX_SCHEDULE_WINDOWS_PER_ZONE,
+            DEFROST_MAX_DURATION
+        );
+    }
+
+    function getLimitsBundle() external pure returns (
+        uint256 maxLabelLen,
+        uint256 maxBatchZones,
+        uint256 maxBatchReadings,
+        uint256 maxFanPresets,
+        uint256 maxHumidity,
+        uint256 calibrationMax,
+        uint256 maxLinked
+    ) {
+        return (
+            MAX_LABEL_LENGTH,
+            MAX_BATCH_ZONES,
+            MAX_BATCH_READINGS,
+            MAX_FAN_PRESETS,
+            MAX_HUMIDITY_PERCENT,
+            CALIBRATION_OFFSET_MAX,
+            MAX_LINKED_ZONES
+        );
+    }
+
+    function thermostatModeName(uint8 mode) external pure returns (string memory) {
+        if (mode == THERMOSTAT_MODE_OFF) return "OFF";
+        if (mode == THERMOSTAT_MODE_COOL) return "COOL";
+        if (mode == THERMOSTAT_MODE_HEAT) return "HEAT";
+        if (mode == THERMOSTAT_MODE_AUTO) return "AUTO";
+        return "UNKNOWN";
+    }
+
+    function isCoolingMode(uint8 mode) external pure returns (bool) {
+        return mode == THERMOSTAT_MODE_COOL || mode == THERMOSTAT_MODE_AUTO;
+    }
+
+    function isHeatingMode(uint8 mode) external pure returns (bool) {
+        return mode == THERMOSTAT_MODE_HEAT || mode == THERMOSTAT_MODE_AUTO;
+    }
+
+    function canApplySetpointSuggestion(bytes32 zoneId) external view returns (bool) {
+        return _zones[zoneId].createdAt != 0 && !_archived[zoneId] && !_paused;
+    }
+
+    function canBindSchedule(bytes32 zoneId) external view returns (bool) {
+        if (_zones[zoneId].createdAt == 0 || _archived[zoneId]) return false;
+        return _schedules[zoneId].length < MAX_SCHEDULE_WINDOWS_PER_ZONE;
+    }
+
+    function domainType() external pure returns (bytes32) {
+        return FRG_DOMAIN;
+    }
+}
