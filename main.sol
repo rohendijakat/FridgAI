@@ -1454,3 +1454,94 @@ contract FridgAI {
 
     function getFeeCollectorBalance() external view returns (uint256) {
         return feeCollector.balance;
+    }
+
+    function getClimateHubAddress() external view returns (address) {
+        return climateHub;
+    }
+
+    function getFeeCollectorAddress() external view returns (address) {
+        return feeCollector;
+    }
+
+    function getFallbackTreasuryAddress() external view returns (address) {
+        return fallbackTreasury;
+    }
+
+    function isPaused() external view returns (bool) {
+        return _paused;
+    }
+
+    function nextZoneIdPublic() external view returns (uint256) {
+        return _nextZoneId;
+    }
+
+    function checkZoneExists(bytes32 zoneId) external view returns (bool) {
+        return _zones[zoneId].createdAt != 0;
+    }
+
+    function checkZoneArchived(bytes32 zoneId) external view returns (bool) {
+        return _archived[zoneId];
+    }
+
+    function checkZoneActive(bytes32 zoneId) external view returns (bool) {
+        return _zones[zoneId].createdAt != 0 && !_archived[zoneId];
+    }
+
+    function getRequiredFeeForZones(uint256 numZones) external view returns (uint256) {
+        return anchorFeeWei * numZones;
+    }
+
+    function getRequiredFeeForSingleZone() external view returns (uint256) {
+        return anchorFeeWei;
+    }
+
+    function getZoneLabelsBatch(bytes32[] calldata zoneIds) external view returns (string[] memory labels) {
+        uint256 n = zoneIds.length;
+        labels = new string[](n);
+        for (uint256 i = 0; i < n; i++) labels[i] = _zoneLabel[zoneIds[i]];
+    }
+
+    function getNightSetbacksBatch(bytes32[] calldata zoneIds) external view returns (uint16[] memory setbacks) {
+        uint256 n = zoneIds.length;
+        setbacks = new uint16[](n);
+        for (uint256 i = 0; i < n; i++) setbacks[i] = _nightSetbackDecicelsius[zoneIds[i]];
+    }
+
+    function getDaySetforwardsBatch(bytes32[] calldata zoneIds) external view returns (uint16[] memory setforwards) {
+        uint256 n = zoneIds.length;
+        setforwards = new uint16[](n);
+        for (uint256 i = 0; i < n; i++) setforwards[i] = _daySetforwardDecicelsius[zoneIds[i]];
+    }
+
+    function getCooldownUntilBlocksBatch(bytes32[] calldata zoneIds) external view returns (uint256[] memory untilBlocks) {
+        uint256 n = zoneIds.length;
+        untilBlocks = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) untilBlocks[i] = _cooldownUntilBlock[zoneIds[i]];
+    }
+
+    function withinHysteresisPublic(int256 reading, int256 low, int256 high) external pure returns (bool) {
+        return FridgAIMath.withinHysteresis(reading, low, high);
+    }
+
+    function scaledTempToDecicelsius(int256 scaled) external pure returns (int256) {
+        return FridgAIMath.scaledToDecicelsius(scaled);
+    }
+
+    function decicelsiusToScaledTemp(int256 decicelsius) external pure returns (int256) {
+        return FridgAIMath.decicelsiusToScaled(decicelsius);
+    }
+
+    function absInt256(int256 x) external pure returns (uint256) {
+        return FridgAIMath.abs(x);
+    }
+
+    function minSetpointOf(uint16 a, uint16 b) external pure returns (uint16) {
+        return a < b ? a : b;
+    }
+
+    function maxSetpointOf(uint16 a, uint16 b) external pure returns (uint16) {
+        return a > b ? a : b;
+    }
+
+    function computeAnchorFeeForBatch(uint256 count) external view returns (uint256) {
